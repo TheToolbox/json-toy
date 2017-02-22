@@ -1,6 +1,5 @@
 macro_rules! TODO { () => (unreachable!()) }
 
-
 #[derive(Debug)]
 pub enum JSON {
     Array(Vec<JSON>),
@@ -23,12 +22,15 @@ enum ParserState {
     ///for booleans
     ExpectingR,
     ExpectingU,
-    ExpectingE,
+    ExpectingTrueE,
     ExpectingA,
     ExpectingL,
     ExpectingS,
+    ExpectingFalseE,
+    ///to ignore double quotes in escaped strings
+    IgnoringCharacter,
     ///to confirm no trailing nonsense (ie `{"a": "b"}3`)
-    Returning
+    ExpectingNothingElse
 }
 
 impl JSON {
@@ -36,7 +38,9 @@ impl JSON {
         use ParserState::*;
         let mut state = ExpectingItem;
         let mut objectStack: Vec<JSON> = vec![];
-        let mut 
+        let mut key = &"";
+        let mut stringstart = 0;
+        let mut stringend = 0;
         //1: remove starting whitespace
         //for each character
         //if character is [, add JSON array to stack and as value (err if expecting key)
@@ -49,8 +53,8 @@ impl JSON {
             //add as value if array is on stack or object is and key exists,
             //, or error if object is on stack but no key
             //, or assert no other data and return number
-        //if character is t, assert next 3 are 'rue'
-        //, or if f, assert next 4 are 'alse'
+        //✓if character is t, assert next 3 are 'rue'
+        //✓, or if f, assert next 4 are 'alse'
             //add as value if array is on stack or object is and key exists,
             //, or error if object is on stack but no key
             //, or assert no other data and return bool
@@ -60,6 +64,9 @@ impl JSON {
             //if stack is empty, assert no other data and return array
         //after any value add, go into ExpectingComma, and return to 
         //if data ends with anything on the stack, error
+
+        macro_rules! ParsingErr { ($message:expr) => (TODO!();) }
+        macro_rules! ReturnIfNothingOnStack { ($val:expr) => (TODO!();) }
 
         for i in input.chars() {
             match state {
@@ -71,12 +78,25 @@ impl JSON {
                         't' => state = ExpectingR,
                         'f' => state = ExpectingA,
                         '"' => state = ReadingString,
-                        '}' => {},
+                        '}' => { objectStack.pop(); },
                         ']' => {},
                         _ => unreachable!(),
                     }
                 },
-                ReadingString => {},
+                ExpectingR => if i == 'r' { state = ExpectingU } else { ParsingErr!("Unexpected character. Expected an 'r'."); },
+                ExpectingU => if i == 'u' { state = ExpectingTrueE } else { ParsingErr!("Unexpected character. Expected a 'u'."); },
+                ExpectingTrueE => if i == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
+                ExpectingA => if i == 'a' { state = ExpectingL } else { ParsingErr!("Unexpected character. Expected an 'a'."); },
+                ExpectingL => if i == 'l' { state = ExpectingS } else { ParsingErr!("Unexpected character. Expected an 'l'."); },
+                ExpectingS => if i == 's' { state = ExpectingFalseE } else { ParsingErr!("Unexpected character. Expected an 's'."); },
+                ExpectingFalseE => if i == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
+                ReadingString => { 
+                    match i {
+                        '\\' => { state = IgnoringCharacter; },
+                        '"' => { ReturnIfNothingOnStack!(9); TODO!(); },
+                        _ => unreachable!()
+                    }
+                },
 
                 _ => unreachable!(),
 
