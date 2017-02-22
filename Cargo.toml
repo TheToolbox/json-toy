@@ -1,0 +1,10 @@
+[package]
+name = "json-toy"
+version = "0.1.0"
+authors = ["Jason 'Toolbox' Oettinger <jason@oettinger.email>"]
+
+[dependencies]
+
+[[bin]]
+name = "json-toy"
+path = "main.rs"
