@@ -13,6 +13,7 @@ enum ParserState {
     ExpectingItem,
     ExpectingComma,
     ExpectingKey,
+    ExpectingColon,
     
     ReadingString,
     ReadingNumber,
@@ -37,10 +38,9 @@ impl JSON {
     pub fn new(input: String) {
         use ParserState::*;
         let mut state = ExpectingItem;
-        let mut objectStack: Vec<JSON> = vec![];
-        let mut key = &"";
+        let mut object_stack: Vec<JSON> = vec![];
+        let key : Option<String> = None;
         let mut stringstart = 0;
-        let mut stringend = 0;
         //1: remove starting whitespace
         //for each character
         //if character is [, add JSON array to stack and as value (err if expecting key)
@@ -68,32 +68,50 @@ impl JSON {
         macro_rules! ParsingErr { ($message:expr) => (TODO!();) }
         macro_rules! ReturnIfNothingOnStack { ($val:expr) => (TODO!();) }
 
-        for i in input.chars() {
+        for (i,c) in input.chars().enumerate() {
             match state {
                 ExpectingItem => {
-                    match i {
+                    match c {
                         ' ' | '\n' | '\t' | '\r' => continue,
-                        '[' => objectStack.push(JSON::Array(vec![])),
-                        '{' => objectStack.push(JSON::Object(std::collections::HashMap::new())),
+                        '[' => object_stack.push(JSON::Array(vec![])),
+                        '{' => object_stack.push(JSON::Object(std::collections::HashMap::new())),
                         't' => state = ExpectingR,
                         'f' => state = ExpectingA,
-                        '"' => state = ReadingString,
-                        '}' => { objectStack.pop(); },
+                        '"' => { stringstart = i + 1; state = ReadingString },
+                        '}' => { object_stack.pop(); },
                         ']' => {},
                         _ => unreachable!(),
                     }
                 },
-                ExpectingR => if i == 'r' { state = ExpectingU } else { ParsingErr!("Unexpected character. Expected an 'r'."); },
-                ExpectingU => if i == 'u' { state = ExpectingTrueE } else { ParsingErr!("Unexpected character. Expected a 'u'."); },
-                ExpectingTrueE => if i == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
-                ExpectingA => if i == 'a' { state = ExpectingL } else { ParsingErr!("Unexpected character. Expected an 'a'."); },
-                ExpectingL => if i == 'l' { state = ExpectingS } else { ParsingErr!("Unexpected character. Expected an 'l'."); },
-                ExpectingS => if i == 's' { state = ExpectingFalseE } else { ParsingErr!("Unexpected character. Expected an 's'."); },
-                ExpectingFalseE => if i == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
+                ExpectingR => if c == 'r' { state = ExpectingU } else { ParsingErr!("Unexpected character. Expected an 'r'."); },
+                ExpectingU => if c == 'u' { state = ExpectingTrueE } else { ParsingErr!("Unexpected character. Expected a 'u'."); },
+                ExpectingTrueE => if c == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
+                ExpectingA => if c == 'a' { state = ExpectingL } else { ParsingErr!("Unexpected character. Expected an 'a'."); },
+                ExpectingL => if c == 'l' { state = ExpectingS } else { ParsingErr!("Unexpected character. Expected an 'l'."); },
+                ExpectingS => if c == 's' { state = ExpectingFalseE } else { ParsingErr!("Unexpected character. Expected an 's'."); },
+                ExpectingFalseE => if c == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
+                ExpectingComma => TODO!(),
+                ReadingNumber => TODO!(),
                 ReadingString => { 
-                    match i {
+                    match c {
                         '\\' => { state = IgnoringCharacter; },
-                        '"' => { ReturnIfNothingOnStack!(9); TODO!(); },
+                        '"' => { 
+                            let x = input[stringstart..i].to_owned();
+                            let s = JSON::String(x); 
+                            ReturnIfNothingOnStack!(s);
+                            let z = object_stack.len() - 1;
+                            match object_stack[z] {
+                                JSON::Array(ref mut a) => a.push(s),
+                                JSON::Object(ref mut o) => {
+                                    match key {
+                                        Some(k) => { o.insert(k,s); key = None; }
+                                        None => { key = Some(x); }
+                                    }
+                                },
+                                _ => unreachable!()
+                            } 
+                            TODO!();     
+                        },
                         _ => unreachable!()
                     }
                 },
