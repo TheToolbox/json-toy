@@ -39,7 +39,7 @@ impl JSON {
         use ParserState::*;
         let mut state = ExpectingItem;
         let mut object_stack: Vec<JSON> = vec![];
-        let key : Option<String> = None;
+        let mut key : Option<String> = None;
         let mut stringstart = 0;
         //1: remove starting whitespace
         //for each character
@@ -96,21 +96,19 @@ impl JSON {
                     match c {
                         '\\' => { state = IgnoringCharacter; },
                         '"' => { 
-                            let x = input[stringstart..i].to_owned();
-                            let s = JSON::String(x); 
-                            ReturnIfNothingOnStack!(s);
+                            let s = input[stringstart..i].to_owned();
+                            //ReturnIfNothingOnStack!(s);
                             let z = object_stack.len() - 1;
                             match object_stack[z] {
-                                JSON::Array(ref mut a) => a.push(s),
+                                JSON::Array(ref mut a) => a.push(JSON::String(s)),
                                 JSON::Object(ref mut o) => {
                                     match key {
-                                        Some(k) => { o.insert(k,s); key = None; }
-                                        None => { key = Some(x); }
+                                        Some(k) => { o.insert(k,JSON::String(s)); key = None; }
+                                        None => { key = Some(s); }
                                     }
                                 },
                                 _ => unreachable!()
                             } 
-                            TODO!();     
                         },
                         _ => unreachable!()
                     }
