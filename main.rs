@@ -1,6 +1,6 @@
 macro_rules! TODO { () => (unreachable!()) }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum JSON {
     Array(Vec<JSON>),
     Object(std::collections::HashMap<String, JSON>),
@@ -38,7 +38,7 @@ impl JSON {
     pub fn new(input: String) {
         use ParserState::*;
         let mut state = ExpectingItem;
-        let mut object_stack: Vec<JSON> = vec![];
+        let mut object_stack: Vec<&JSON> = vec![];
         let mut key : Option<String> = None;
         let mut stringstart = 0;
         //1: remove starting whitespace
@@ -73,8 +73,13 @@ impl JSON {
                 ExpectingItem => {
                     match c {
                         ' ' | '\n' | '\t' | '\r' => continue,
-                        '[' => object_stack.push(JSON::Array(vec![])),
-                        '{' => object_stack.push(JSON::Object(std::collections::HashMap::new())),
+                        '[' => {
+                            let x = vec![];
+                            let y = JSON::Array(x);
+                            let ref z = &y;
+                            object_stack.push(z);
+                        },
+                        '{' => object_stack.push(&JSON::Object(std::collections::HashMap::new())),
                         't' => state = ExpectingR,
                         'f' => state = ExpectingA,
                         '"' => { stringstart = i + 1; state = ReadingString },
@@ -100,8 +105,8 @@ impl JSON {
                             //ReturnIfNothingOnStack!(s);
                             let z = object_stack.len() - 1;
                             match object_stack[z] {
-                                JSON::Array(ref mut a) => a.push(JSON::String(s)),
-                                JSON::Object(ref mut o) => {
+                                &JSON::Array(ref mut a) => a.push(JSON::String(s)),
+                                &JSON::Object(ref mut o) => {
                                     match key {
                                         Some(k) => { o.insert(k,JSON::String(s)); key = None; }
                                         None => { key = Some(s); }
