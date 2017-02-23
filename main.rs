@@ -11,14 +11,14 @@ pub enum JSON {
 
 enum ParserState {
     ExpectingItem,
-    ExpectingComma,
-    ExpectingKey,
-    ExpectingColon,
+    //ExpectingComma,
+    //ExpectingKey,
+    //ExpectingColon,
     
     ReadingString,
-    ReadingNumber,
-    ReadingObject,
-    ReadingArray,
+    //ReadingNumber,
+    //ReadingObject,
+    //ReadingArray,
 
     ///for booleans
     ExpectingR,
@@ -30,8 +30,8 @@ enum ParserState {
     ExpectingFalseE,
     ///to ignore double quotes in escaped strings
     IgnoringCharacter,
-    ///to confirm no trailing nonsense (ie `{"a": "b"}3`)
-    ExpectingNothingElse
+    //to confirm no trailing nonsense (ie `{"a": "b"}3`)
+    //ExpectingNothingElse
 }
 
 impl JSON {
@@ -90,8 +90,8 @@ impl JSON {
                 ExpectingL => if c == 'l' { state = ExpectingS } else { ParsingErr!("Unexpected character. Expected an 'l'."); },
                 ExpectingS => if c == 's' { state = ExpectingFalseE } else { ParsingErr!("Unexpected character. Expected an 's'."); },
                 ExpectingFalseE => if c == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
-                ExpectingComma => TODO!(),
-                ReadingNumber => TODO!(),
+                //ExpectingComma => TODO!(),
+                //ReadingNumber => TODO!(),
                 ReadingString => { 
                     match c {
                         '\\' => { state = IgnoringCharacter; },
