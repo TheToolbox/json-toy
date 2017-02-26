@@ -122,22 +122,31 @@ impl JSON {
     }
 }
 
-fn main() {
+/// Testing function
+fn test() {
+    ///Confirm that we can construct objects as expected
     let z = JSON::Array(vec![JSON::Boolean(true)]);
-    let example = "
+    ///Load up a few examples to test parsing
+    let examples = [
+    ///Test parsing a single string
+    "\"string\"",
+    ///A more complex test with an object, array, empty object, numbers, strings, bools, and whitespace galore
+    "
     {
         \"testy\": {
 
         },
-        \"poop\": {\"grob\": [3,4,\"33\"]}
+        \"poop\": {\"grob\": [3,4,\"33\", false]}
         \"clastic\": 34.3
-    }";
-    for i in example.chars() {
-        print!("{}", i);
-    }
-    //parse(example);
+    }"];
+    ///
+    print!("{:?}", examples);
+    
     //let a = JsonObject::new();
     println!("{:?}", z);
+}
 
-
+fn main() {
+    ///Run tests
+    test();
 }
