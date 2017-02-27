@@ -1,6 +1,4 @@
 macro_rules! TODO { () => (unreachable!()) }
-use std::str::FromStr;
-
 
 #[derive(Debug)]
 pub enum JSON {
@@ -19,8 +17,6 @@ enum ParserState {
     
     ReadingString,
     ReadingNumber,
-    //ReadingObject,
-    //ReadingArray,
 
     ///for booleans
     ExpectingR,
@@ -33,10 +29,10 @@ enum ParserState {
     ///to ignore double quotes in escaped strings
     IgnoringCharacter,
     //to confirm no trailing nonsense (ie `{"a": "b"}3`)
-    //ExpectingNothingElse
+    ExpectingNothingElse
 }
 
-struct ParsingError{}
+//struct ParsingError{}
 
 impl JSON {
     ///Creates a new JSON object, parsing it from a string
@@ -46,6 +42,8 @@ impl JSON {
         let mut object_stack: Vec<JSON> = vec![];
         let mut key : Option<String> = None;
         let mut start = 0;
+        let mut retval : Result<JSON, &'static str> = Err("Unknown error occurred");
+        
         //1: remove starting whitespace
         //for each character
         //if character is [, add JSON array to stack and as value (err if expecting key)
@@ -69,19 +67,20 @@ impl JSON {
             //if stack is empty, assert no other data and return array
         //after any value add, go into ExpectingComma, and return to 
         //if data ends with anything on the stack, error
-        macro_rules! Whitespace { ($somepat:pat) => { ' ' | '\n' | '\t' | '\r' } }
-        macro_rules! ParsingErr { ($message:expr) => {return Err($message);} }
+        //giving up on this for now
+        //macro_rules! Whitespace { ($somepat:pat) => { ' ' | '\n' | '\t' | '\r' => } }
+        macro_rules! ParsingErr { ($message:expr) => { return Err($message); } }
         macro_rules! CompleteItem {
             ($item:expr) => {
                 match object_stack.last_mut() {
-                    None => return Ok($item),
-                    Some(&mut JSON::Array(ref mut a)) => a.push($item),
+                    None => { retval = Ok($item); state = ExpectingNothingElse; },
+                    Some(&mut JSON::Array(ref mut a)) => {a.push($item); state = ExpectingComma; },
                     Some(&mut JSON::Object(ref mut o)) => {
                         match key {
-                            Some(k) => { o.insert(k,$item); key = None; },
+                            Some(k) => { o.insert(k,$item); key = None; state = ExpectingComma; },
                             None => {
                                 match $item {
-                                    JSON::String(s) => key = Some(s),
+                                    JSON::String(s) => { key = Some(s); state = ExpectingColon; },
                                     _ => ParsingErr!("Expected key.")
                                 }
                             },
@@ -95,9 +94,8 @@ impl JSON {
 
         for (i,c) in input.chars().enumerate() {
             match state {
-                ExpectingItem => {
-                    match c {
-                        Whitespace!(' ') => continue,
+                ExpectingItem => match c {
+                        ' ' | '\n' | '\t' | '\r' => continue,
                         '[' => object_stack.push(JSON::Array(vec![])),
                         '{' => object_stack.push(JSON::Object(std::collections::HashMap::new())),
                         't' => state = ExpectingR,
@@ -109,8 +107,7 @@ impl JSON {
                                 Some(x) => CompleteItem!(x),
                                 None => ParsingErr!("Unexpected closing bracket (] or }).")
                             }},
-                        _ => unreachable!(),
-                    }
+                        _ => ParsingErr!("Unexpected character encountered"),
                 },
                 ExpectingR => if c == 'r' { state = ExpectingU } else { ParsingErr!("Unexpected character. Expected an 'r'."); },
                 ExpectingU => if c == 'u' { state = ExpectingTrueE } else { ParsingErr!("Unexpected character. Expected a 'u'."); },
@@ -119,47 +116,35 @@ impl JSON {
                 ExpectingL => if c == 'l' { state = ExpectingS } else { ParsingErr!("Unexpected character. Expected an 'l'."); },
                 ExpectingS => if c == 's' { state = ExpectingFalseE } else { ParsingErr!("Unexpected character. Expected an 's'."); },
                 ExpectingFalseE => if c == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
-                ExpectingComma => {
-                    match c {
+                ExpectingColon => match c { ':' => state = ExpectingItem, ' ' | '\n' | '\t' | '\r' => continue , _ => ParsingErr!("Expected Colon.") },
+                ExpectingComma => match c {
                         ',' => state = ExpectingItem,
-                        Whitespace!() => continue,
+                        '}' | ']' => match object_stack.pop() {
+                            Some(x) => CompleteItem!(x),
+                            None => ParsingErr!("Unexpected ']' or '}'.")
+                        },
+                        ' ' | '\n' | '\t' | '\r' => continue,
                         _ => ParsingErr!("Expected a comma.")
-                    }
                 },
-                ReadingNumber => {
-                    match c {
+                ReadingNumber => match c {
                         '.' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => continue,
                         ///invalid numbers can get past here still, needs to be fixed
                         _ => CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap()))
-                    }
                 },
-                ExpectingColon => match c { ':' => state = ExpectingItem, Whitespace!() => continue , _ => ParsingErr!("Expected Colon.") },
                 IgnoringCharacter => continue,
-                ReadingString => { 
-                    match c {
+                ReadingString => match c {
                         '\\' => { state = IgnoringCharacter; },
-                        '"' => { 
-                            let s = input[start..i].to_owned();
-                            //ReturnIfNothingOnStack!(s);
-                            let z = object_stack.len() - 1;
-                            match object_stack[z] {
-                                JSON::Array(ref mut a) => a.push(JSON::String(s)),
-                                JSON::Object(ref mut o) => {
-                                    match key {
-                                        Some(k) => { o.insert(k,JSON::String(s)); key = None; }
-                                        None => { key = Some(s); state = ExpectingColon; }
-                                    }
-                                },
-                                _ => unreachable!()
-                            } 
-                        },
-                        _ => unreachable!()
-                    }
+                        '"' => { CompleteItem!(JSON::String(input[start..i].to_owned())) },
+                        _ => continue
                 },
+                ExpectingNothingElse => match c {
+                    ' ' | '\n' | '\r' | '\t' => continue,
+                    _ => ParsingErr!("Encountered unexpected character after JSON content")
+                }
             }
 
         };
-       Err("Failed")
+       retval
     }
     
 }
@@ -167,11 +152,17 @@ impl JSON {
 /// Testing function
 fn test() {
     ///Confirm that we can construct objects as expected
-    let z = JSON::Array(vec![JSON::Boolean(true)]);
+    let _z = JSON::Array(vec![JSON::Boolean(true)]);
     ///Load up a few examples to test parsing
-    let examples = [
+    let examples = vec![
     ///Test parsing a single string
-    "\"string\"",
+    "\"strung\"",
+    "[\"strang\"]",
+    "[\"strang\",\"strunk\"]",
+    "[\"strang\",\"strunk\",2]",
+    "{}",
+    "{\"grok\": \"jok\"}",
+    "-23.3",
     ///A more complex test with an object, array, empty object, numbers, strings, bools, and whitespace galore
     "
     {
@@ -182,10 +173,11 @@ fn test() {
         \"clastic\": 34.3
     }"];
     ///
-    print!("{:?}", examples);
-    
-    //let a = JsonObject::new();
-    println!("{:?}", z);
+    //println!("{:?}", examples);
+    for e in examples {
+        let a = JSON::new(e.to_string());
+        println!("{:?}", a);
+    }
 }
 
 fn main() {
