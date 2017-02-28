@@ -9,6 +9,7 @@ pub enum JSON {
     Boolean(bool),
 }
 
+#[derive(Debug)]
 enum ParserState {
     ExpectingItem,
     ExpectingComma,
@@ -40,7 +41,7 @@ impl JSON {
         use ParserState::*;
         let mut state = ExpectingItem;
         let mut object_stack: Vec<JSON> = vec![];
-        let mut key : Option<String> = None;
+        let mut key_stack : Vec<Option<String>> = vec![];
         let mut start = 0;
         let mut retval : Result<JSON, &'static str> = Err("Unknown error occurred");
         
@@ -69,18 +70,20 @@ impl JSON {
         //if data ends with anything on the stack, error
         //giving up on this for now
         //macro_rules! Whitespace { ($somepat:pat) => { ' ' | '\n' | '\t' | '\r' => } }
+        macro_rules! e { ($m:expr) => { println!($m); } }
         macro_rules! ParsingErr { ($message:expr) => { return Err($message); } }
         macro_rules! CompleteItem {
             ($item:expr) => {
                 match object_stack.last_mut() {
-                    None => { retval = Ok($item); state = ExpectingNothingElse; },
+                    None => { retval = Ok($item); e!("expecting nothing else"); state = ExpectingNothingElse; },
                     Some(&mut JSON::Array(ref mut a)) => {a.push($item); state = ExpectingComma; },
                     Some(&mut JSON::Object(ref mut o)) => {
-                        match key {
-                            Some(k) => { o.insert(k,$item); key = None; state = ExpectingComma; },
+                        ///Possible that this will unwrap to None, needs evaluation
+                        match key_stack.pop().unwrap() {
+                            Some(k) => {println!("adding val {:?}",$item); o.insert(k,$item); key_stack.push(None); state = ExpectingComma; },
                             None => {
                                 match $item {
-                                    JSON::String(s) => { key = Some(s); state = ExpectingColon; },
+                                    JSON::String(s) => { println!("Adding key {}",s); key_stack.push(Some(s)); state = ExpectingColon; },
                                     _ => ParsingErr!("Expected key.")
                                 }
                             },
@@ -96,17 +99,17 @@ impl JSON {
             match state {
                 ExpectingItem => match c {
                         ' ' | '\n' | '\t' | '\r' => continue,
-                        '[' => object_stack.push(JSON::Array(vec![])),
-                        '{' => object_stack.push(JSON::Object(std::collections::HashMap::new())),
+                        '[' => { object_stack.push(JSON::Array(vec![])); key_stack.push(None);},
+                        '{' => { object_stack.push(JSON::Object(std::collections::HashMap::new())); key_stack.push(None);},
                         't' => state = ExpectingR,
                         'f' => state = ExpectingA,
                         '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {start = i; state = ReadingNumber},
                         '"' => { start = i + 1; state = ReadingString },
-                        '}' | ']' => { 
+                        /*'}' | ']' => { 
                             match object_stack.pop() {
                                 Some(x) => CompleteItem!(x),
                                 None => ParsingErr!("Unexpected closing bracket (] or }).")
-                            }},
+                            }},*/
                         _ => ParsingErr!("Unexpected character encountered"),
                 },
                 ExpectingR => if c == 'r' { state = ExpectingU } else { ParsingErr!("Unexpected character. Expected an 'r'."); },
@@ -124,12 +127,12 @@ impl JSON {
                             None => ParsingErr!("Unexpected ']' or '}'.")
                         },
                         ' ' | '\n' | '\t' | '\r' => continue,
-                        _ => ParsingErr!("Expected a comma.")
+                        _ => {println!("{}",c); ParsingErr!("Expected a comma.")}
                 },
                 ReadingNumber => match c {
                         '.' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => continue,
-                        ///invalid numbers can get past here still, needs to be fixed
-                        _ => CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap()))
+                        ///invalid numbers can get past here still, needs to be fixed TODO
+                        _ => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap()));}
                 },
                 IgnoringCharacter => continue,
                 ReadingString => match c {
@@ -144,7 +147,17 @@ impl JSON {
             }
 
         };
-       retval
+        if object_stack.len() > 0 {
+            println!("{:?}",state);
+            ParsingErr!("unexpected end of data")
+        } else {
+            match state {
+                ExpectingNothingElse => retval,
+                //TODO improve Number implementation
+                ReadingNumber => Ok(JSON::Number(input.parse::<f64>().unwrap())),
+                _ => ParsingErr!("JSON was not properly closed")
+            }
+        }
     }
     
 }
@@ -157,11 +170,18 @@ fn test() {
     let examples = vec![
     ///Test parsing a single string
     "\"strung\"",
+    ///Empty array
+    "[]",
+    ///array of 1 string
     "[\"strang\"]",
+    ///Array w/ two strings
     "[\"strang\",\"strunk\"]",
     "[\"strang\",\"strunk\",2]",
     "{}",
     "{\"grok\": \"jok\"}",
+    "{\"grok\": \"jok\", \"gluckgluckgluckyeah\": {\"ooooh\": \"caribou!\"}}",
+    "0",
+    "10",
     "-23.3",
     ///A more complex test with an object, array, empty object, numbers, strings, bools, and whitespace galore
     "
@@ -169,14 +189,14 @@ fn test() {
         \"testy\": {
 
         },
-        \"poop\": {\"grob\": [3,4,\"33\", false]}
+        \"clop\": {\"grob\": [3,4,\"33\", false]}
         \"clastic\": 34.3
     }"];
     ///
     //println!("{:?}", examples);
     for e in examples {
         let a = JSON::new(e.to_string());
-        println!("{:?}", a);
+        println!("{} \n\t\t\t\t\t=> {:?}", e, a);
     }
 }
 
