@@ -130,7 +130,7 @@ impl JSON {
                         _ => ParsingErr!("Expected a comma.")
                 },
                 ReadingNumber => match c {
-                        '.' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => continue,
+                        '.' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'E' | 'e' | '-' => continue,
                         ///invalid numbers can get past here still, needs to be fixed TODO
                         '}' | ']' => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap())); PopObject!(); },
                         ',' => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap())); state = ExpectingItem; }
@@ -184,7 +184,7 @@ fn test() {
     "{\"grok\": \"jok\", \"gluckgluckgluckyeah\": {\"ooooh\": \"caribou!\"}}",
     "0",
     "10",
-    "-23.3",
+    "-23.3E-12",
     ///A more complex test with an object, array, empty object, numbers, strings, bools, and whitespace galore
  "
     {
@@ -198,7 +198,7 @@ fn test() {
     //println!("{:?}", examples);
     for e in &examples {
         let _a = JSON::new(e.to_string());
-        //println!("{} \n\t\t\t\t\t=> {:?}", e, a);
+        println!("{} \n\t\t\t\t\t=> {:?}", e, _a);
     }
 }
 
