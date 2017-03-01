@@ -124,7 +124,7 @@ impl JSON {
                 ExpectingA => if c == 'a' { state = ExpectingL } else { ParsingErr!("Unexpected character. Expected an 'a'."); },
                 ExpectingL => if c == 'l' { state = ExpectingS } else { ParsingErr!("Unexpected character. Expected an 'l'."); },
                 ExpectingS => if c == 's' { state = ExpectingFalseE } else { ParsingErr!("Unexpected character. Expected an 's'."); },
-                ExpectingFalseE => if c == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
+                ExpectingFalseE => if c == 'e' { CompleteItem!(JSON::Boolean(false)); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
                 ExpectingColon => match c { ':' => state = ExpectingItem, ' ' | '\n' | '\t' | '\r' => continue , _ => ParsingErr!("Expected Colon.") },
                 ExpectingComma => match c { 
                         ',' => state = ExpectingItem,
@@ -136,7 +136,9 @@ impl JSON {
                         '.' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => continue,
                         ///invalid numbers can get past here still, needs to be fixed TODO
                         '}' | ']' => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap())); PopObject!(); },
+                        ',' => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap())); state = ExpectingItem; }
                         _ => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap()));}
+
                 },
                 IgnoringCharacter => continue,
                 ReadingString => match c {
@@ -193,7 +195,7 @@ fn test() {
         \"testy\": {
 
         },
-        \"clop\": {\"grob\": [3,4,\"33\", false]}
+        \"clop\": {\"grob\": [3,4,\"33\", false]},
         \"clastic\": 34.3
     }"];
     ///
