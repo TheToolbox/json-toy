@@ -9,7 +9,7 @@ pub enum JSON {
     Boolean(bool),
 }
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 enum ParserState {
     ExpectingItem,
     ExpectingComma,
@@ -70,20 +70,28 @@ impl JSON {
         //if data ends with anything on the stack, error
         //giving up on this for now
         //macro_rules! Whitespace { ($somepat:pat) => { ' ' | '\n' | '\t' | '\r' => } }
-        macro_rules! e { ($m:expr) => { println!($m); } }
         macro_rules! ParsingErr { ($message:expr) => { return Err($message); } }
+        macro_rules! PopObject {
+            () => ({
+                key_stack.pop();
+                match object_stack.pop() {
+                    Some(x) => CompleteItem!(x),
+                    None => ParsingErr!("Unexpected ']' or '}'.")
+                };
+            })
+        }
         macro_rules! CompleteItem {
             ($item:expr) => {
                 match object_stack.last_mut() {
-                    None => { retval = Ok($item); e!("expecting nothing else"); state = ExpectingNothingElse; },
+                    None => { retval = Ok($item); println!("expecting nothing else"); state = ExpectingNothingElse; },
                     Some(&mut JSON::Array(ref mut a)) => {a.push($item); state = ExpectingComma; },
                     Some(&mut JSON::Object(ref mut o)) => {
                         ///Possible that this will unwrap to None, needs evaluation
                         match key_stack.pop().unwrap() {
-                            Some(k) => {println!("adding val {:?}",$item); o.insert(k,$item); key_stack.push(None); state = ExpectingComma; },
+                            Some(k) => {println!("adding val {:?}\n",$item); o.insert(k,$item); key_stack.push(None); state = ExpectingComma; },
                             None => {
                                 match $item {
-                                    JSON::String(s) => { println!("Adding key {}",s); key_stack.push(Some(s)); state = ExpectingColon; },
+                                    JSON::String(s) => { println!("Adding key {}\n",s); key_stack.push(Some(s)); state = ExpectingColon; },
                                     _ => ParsingErr!("Expected key.")
                                 }
                             },
@@ -94,8 +102,10 @@ impl JSON {
             }
             
         }
-
+        println!("PARSING------------------------------");
         for (i,c) in input.chars().enumerate() {
+            println!("char: {}, state: {:?}",c,state);
+       
             match state {
                 ExpectingItem => match c {
                         ' ' | '\n' | '\t' | '\r' => continue,
@@ -105,11 +115,7 @@ impl JSON {
                         'f' => state = ExpectingA,
                         '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {start = i; state = ReadingNumber},
                         '"' => { start = i + 1; state = ReadingString },
-                        /*'}' | ']' => { 
-                            match object_stack.pop() {
-                                Some(x) => CompleteItem!(x),
-                                None => ParsingErr!("Unexpected closing bracket (] or }).")
-                            }},*/
+                        '}' | ']' => PopObject!(),
                         _ => ParsingErr!("Unexpected character encountered"),
                 },
                 ExpectingR => if c == 'r' { state = ExpectingU } else { ParsingErr!("Unexpected character. Expected an 'r'."); },
@@ -120,18 +126,16 @@ impl JSON {
                 ExpectingS => if c == 's' { state = ExpectingFalseE } else { ParsingErr!("Unexpected character. Expected an 's'."); },
                 ExpectingFalseE => if c == 'e' { TODO!(); } else { ParsingErr!("Unexpected character. Expected an 'e'."); },
                 ExpectingColon => match c { ':' => state = ExpectingItem, ' ' | '\n' | '\t' | '\r' => continue , _ => ParsingErr!("Expected Colon.") },
-                ExpectingComma => match c {
+                ExpectingComma => match c { 
                         ',' => state = ExpectingItem,
-                        '}' | ']' => match object_stack.pop() {
-                            Some(x) => CompleteItem!(x),
-                            None => ParsingErr!("Unexpected ']' or '}'.")
-                        },
+                        '}' | ']' => { println!("comma"); PopObject!(); },
                         ' ' | '\n' | '\t' | '\r' => continue,
-                        _ => {println!("{}",c); ParsingErr!("Expected a comma.")}
+                        _ => ParsingErr!("Expected a comma.")
                 },
                 ReadingNumber => match c {
                         '.' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => continue,
                         ///invalid numbers can get past here still, needs to be fixed TODO
+                        '}' | ']' => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap())); PopObject!(); },
                         _ => { CompleteItem!(JSON::Number(input[start..i].parse::<f64>().unwrap()));}
                 },
                 IgnoringCharacter => continue,
@@ -149,13 +153,13 @@ impl JSON {
         };
         if object_stack.len() > 0 {
             println!("{:?}",state);
-            ParsingErr!("unexpected end of data")
+            ParsingErr!("Unexpected end of data")
         } else {
             match state {
                 ExpectingNothingElse => retval,
                 //TODO improve Number implementation
                 ReadingNumber => Ok(JSON::Number(input.parse::<f64>().unwrap())),
-                _ => ParsingErr!("JSON was not properly closed")
+                _ => ParsingErr!("Unexpected end of data.")
             }
         }
     }
