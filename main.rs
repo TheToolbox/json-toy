@@ -83,15 +83,15 @@ impl JSON {
         macro_rules! CompleteItem {
             ($item:expr) => {
                 match object_stack.last_mut() {
-                    None => { retval = Ok($item); println!("expecting nothing else"); state = ExpectingNothingElse; },
+                    None => { retval = Ok($item); state = ExpectingNothingElse; },
                     Some(&mut JSON::Array(ref mut a)) => {a.push($item); state = ExpectingComma; },
                     Some(&mut JSON::Object(ref mut o)) => {
                         ///Possible that this will unwrap to None, needs evaluation
                         match key_stack.pop().unwrap() {
-                            Some(k) => {println!("adding val {:?}\n",$item); o.insert(k,$item); key_stack.push(None); state = ExpectingComma; },
+                            Some(k) => {o.insert(k,$item); key_stack.push(None); state = ExpectingComma; },
                             None => {
                                 match $item {
-                                    JSON::String(s) => { println!("Adding key {}\n",s); key_stack.push(Some(s)); state = ExpectingColon; },
+                                    JSON::String(s) => { key_stack.push(Some(s)); state = ExpectingColon; },
                                     _ => ParsingErr!("Expected key.")
                                 }
                             },
@@ -102,10 +102,7 @@ impl JSON {
             }
             
         }
-        println!("PARSING------------------------------");
-        for (i,c) in input.chars().enumerate() {
-            println!("char: {}, state: {:?}",c,state);
-       
+        for (i,c) in input.chars().enumerate() {       
             match state {
                 ExpectingItem => match c {
                         ' ' | '\n' | '\t' | '\r' => continue,
@@ -128,7 +125,7 @@ impl JSON {
                 ExpectingColon => match c { ':' => state = ExpectingItem, ' ' | '\n' | '\t' | '\r' => continue , _ => ParsingErr!("Expected Colon.") },
                 ExpectingComma => match c { 
                         ',' => state = ExpectingItem,
-                        '}' | ']' => { println!("comma"); PopObject!(); },
+                        '}' | ']' => PopObject!(),
                         ' ' | '\n' | '\t' | '\r' => continue,
                         _ => ParsingErr!("Expected a comma.")
                 },
@@ -154,7 +151,6 @@ impl JSON {
 
         };
         if object_stack.len() > 0 {
-            println!("{:?}",state);
             ParsingErr!("Unexpected end of data")
         } else {
             match state {
@@ -190,19 +186,19 @@ fn test() {
     "10",
     "-23.3",
     ///A more complex test with an object, array, empty object, numbers, strings, bools, and whitespace galore
-    "
+ "
     {
         \"testy\": {
 
         },
         \"clop\": {\"grob\": [3,4,\"33\", false]},
         \"clastic\": 34.3
-    }"];
+}"];
     ///
     //println!("{:?}", examples);
-    for e in examples {
-        let a = JSON::new(e.to_string());
-        println!("{} \n\t\t\t\t\t=> {:?}", e, a);
+    for e in &examples {
+        let _a = JSON::new(e.to_string());
+        //println!("{} \n\t\t\t\t\t=> {:?}", e, a);
     }
 }
 
